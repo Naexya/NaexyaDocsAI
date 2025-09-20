@@ -1,0 +1,39 @@
+# Environment variables and secrets
+.env
+*.key
+secrets/
+
+# Python build artefacts and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Local virtual environment folders
+env/
+venv/
+ENV/
+
+# SQLite and other local database files
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE and editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Operating system generated files
+.DS_Store
+Thumbs.db
+
+# Gradio generated assets
+gradio_cached_examples/
+flagged/
+
+# Log files and directories
+*.log
+logs/
