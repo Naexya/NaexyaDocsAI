@@ -1,3 +1,14 @@
+---
+title: Naexya Docs AI
+emoji: 📋
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+sdk_version: "4.0.0"
+app_file: app.py
+pinned: false
+---
+
 # Naexya Docs AI
 
 Open-source AI-powered specification management tool that helps product and engineering teams collaborate with multiple large language models, extract structured requirements, and export professional documentation without leaving a browser tab.
