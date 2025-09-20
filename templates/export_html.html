@@ -1,0 +1,537 @@
+<!--
+    Professional export template for Naexya Docs AI.
+    This template is rendered via Jinja2 using context prepared in utils.generate_export_html.
+    Extensive comments describe each major block so designers can tweak branding or structure.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ project_name }} – Specification Export | {{ brand_name }}</title>
+    <!--
+        Embedded stylesheet uses CSS variables for easy brand customization and
+        ensures the layout adapts gracefully for both screens and printed copies.
+    -->
+    <style>
+        :root {
+            --brand-primary: #1f3c88;
+            --brand-secondary: #19a974;
+            --brand-accent: #f5f7fb;
+            --text-color: #1f1f1f;
+            --muted-text: #5f6c7b;
+            --border-color: #d9e1ec;
+            --card-shadow: 0 12px 24px rgba(15, 34, 58, 0.08);
+            --font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-family);
+            background: #ffffff;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .page {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 2.5rem 1.75rem 3.5rem;
+        }
+
+        /*
+            Header block contains brand identity and key project metadata.
+            Flex layout ensures the section remains responsive.
+        */
+        .export-header {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 1.5rem;
+            padding: 2rem;
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(31, 60, 136, 0.92), rgba(25, 169, 116, 0.85));
+            color: #ffffff;
+            box-shadow: var(--card-shadow);
+        }
+
+        .export-header .branding {
+            flex: 1 1 240px;
+        }
+
+        .export-header h1 {
+            margin: 0;
+            font-size: 2.25rem;
+            letter-spacing: 0.04em;
+        }
+
+        .export-header .tagline {
+            margin: 0.35rem 0 0;
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .project-meta {
+            flex: 2 1 320px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 14px;
+            padding: 1.25rem 1.5rem;
+            backdrop-filter: blur(4px);
+        }
+
+        .project-meta h2 {
+            margin: 0 0 0.75rem;
+            font-size: 1.65rem;
+        }
+
+        .project-meta p {
+            margin: 0 0 1rem;
+            color: #f1f5fb;
+        }
+
+        .project-meta dl {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.75rem;
+            margin: 0;
+        }
+
+        .project-meta dt {
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            opacity: 0.75;
+        }
+
+        .project-meta dd {
+            margin: 0;
+            font-size: 1rem;
+        }
+
+        /*
+            Statistics grid highlights counts and health metrics using cards so
+            stakeholders can absorb the state of the project at a glance.
+        */
+        .statistics-section {
+            margin: 2.75rem 0;
+        }
+
+        .statistics-section h2 {
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            color: var(--brand-primary);
+        }
+
+        .statistics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background: var(--brand-accent);
+            border-radius: 14px;
+            padding: 1.25rem 1.5rem;
+            box-shadow: var(--card-shadow);
+        }
+
+        .stat-card.span-2 {
+            grid-column: span 2;
+        }
+
+        .stat-label {
+            display: block;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted-text);
+        }
+
+        .stat-value {
+            display: block;
+            margin-top: 0.35rem;
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--brand-primary);
+        }
+
+        .status-list {
+            list-style: none;
+            margin: 0.75rem 0 0;
+            padding: 0;
+        }
+
+        .status-list li {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.35rem 0;
+            border-bottom: 1px dashed rgba(31, 60, 136, 0.2);
+        }
+
+        .status-name {
+            font-weight: 600;
+        }
+
+        .status-count {
+            font-variant-numeric: tabular-nums;
+            color: var(--brand-primary);
+        }
+
+        /*
+            Navigation panel offers quick jumps to each specification category.
+            Anchors reuse the slugified IDs produced by utils._slugify.
+        */
+        .table-of-contents {
+            margin: 3rem 0 2rem;
+            padding: 1.75rem 2rem;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            background: #ffffff;
+            box-shadow: var(--card-shadow);
+        }
+
+        .table-of-contents h2 {
+            margin-top: 0;
+            color: var(--brand-primary);
+            font-size: 1.45rem;
+        }
+
+        .toc-list {
+            margin: 1.25rem 0 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.75rem 1.25rem;
+        }
+
+        .toc-list li a {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0.95rem;
+            border-radius: 12px;
+            text-decoration: none;
+            color: var(--text-color);
+            background: #f9fbff;
+            border: 1px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .toc-list li a:hover,
+        .toc-list li a:focus {
+            border-color: var(--brand-primary);
+            box-shadow: 0 0 0 3px rgba(31, 60, 136, 0.15);
+        }
+
+        .toc-count {
+            font-weight: 600;
+            color: var(--brand-primary);
+        }
+
+        /*
+            Main specification sections are rendered using <section> and <article>
+            with cards for each approved specification entry.
+        */
+        .specification-sections {
+            display: flex;
+            flex-direction: column;
+            gap: 2.5rem;
+        }
+
+        .spec-section {
+            padding: 2rem 2.25rem;
+            border-radius: 18px;
+            background: #ffffff;
+            border: 1px solid var(--border-color);
+            box-shadow: var(--card-shadow);
+        }
+
+        .spec-section.empty {
+            text-align: center;
+            color: var(--muted-text);
+        }
+
+        .section-header {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            font-size: 1.6rem;
+            color: var(--brand-primary);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2.5rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 999px;
+            background: rgba(31, 60, 136, 0.08);
+            color: var(--brand-primary);
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .spec-card {
+            margin-bottom: 1.65rem;
+            padding: 1.5rem 1.75rem;
+            border-radius: 14px;
+            border: 1px solid rgba(31, 60, 136, 0.1);
+            background: #fdfefe;
+            transition: transform 0.2s ease;
+        }
+
+        .spec-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .spec-card h3 {
+            margin: 0 0 0.75rem;
+            font-size: 1.35rem;
+            color: var(--text-color);
+        }
+
+        .spec-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1.5rem;
+            align-items: center;
+            margin-bottom: 1rem;
+            color: var(--muted-text);
+            font-size: 0.95rem;
+        }
+
+        .status-pill {
+            padding: 0.35rem 0.85rem;
+            border-radius: 999px;
+            background: rgba(25, 169, 116, 0.12);
+            color: #198754;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 0.75rem;
+        }
+
+        .status-pending {
+            background: rgba(255, 193, 7, 0.18);
+            color: #ad7a00;
+        }
+
+        .status-approved {
+            background: rgba(25, 169, 116, 0.15);
+            color: #146c43;
+        }
+
+        .status-rejected {
+            background: rgba(220, 53, 69, 0.15);
+            color: #842029;
+        }
+
+        .conversation-link {
+            color: var(--brand-primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .conversation-link:hover,
+        .conversation-link:focus {
+            text-decoration: underline;
+        }
+
+        .spec-body p {
+            margin: 0 0 0.85rem;
+        }
+
+        .spec-body em {
+            color: var(--muted-text);
+        }
+
+        /*
+            Conversation reference list provides anchors back to the originating
+            chats or external systems. Designers can re-point the base URL using
+            project_data["conversation_base_url"].
+        */
+        .conversation-section {
+            margin: 3rem 0;
+            padding: 2rem 2.25rem;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            background: var(--brand-accent);
+        }
+
+        .conversation-section h2 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            color: var(--brand-primary);
+        }
+
+        .conversation-list {
+            list-style: none;
+            margin: 1.25rem 0 0;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.85rem;
+        }
+
+        .conversation-list a {
+            display: block;
+            padding: 0.75rem 0.95rem;
+            border-radius: 12px;
+            background: #ffffff;
+            border: 1px solid rgba(31, 60, 136, 0.12);
+            color: var(--brand-primary);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .conversation-list a:hover,
+        .conversation-list a:focus {
+            border-color: var(--brand-primary);
+            box-shadow: 0 0 0 3px rgba(31, 60, 136, 0.15);
+        }
+
+        /*
+            Footer summarises export metadata for auditing and printouts.
+        */
+        footer {
+            margin-top: 3.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--muted-text);
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        /*
+            Responsive adjustments ensure comfortable reading on tablets and phones.
+        */
+        @media (max-width: 768px) {
+            .page {
+                padding: 2rem 1.25rem 3rem;
+            }
+
+            .export-header {
+                padding: 1.75rem;
+            }
+
+            .project-meta {
+                padding: 1rem 1.25rem;
+            }
+
+            .spec-section {
+                padding: 1.5rem 1.6rem;
+            }
+
+            .table-of-contents {
+                padding: 1.5rem 1.6rem;
+            }
+        }
+
+        /*
+            Print rules remove shadows and adjust spacing for crisp documents.
+        */
+        @media print {
+            body {
+                color: #000000;
+            }
+
+            .page {
+                max-width: none;
+                padding: 1.25rem;
+            }
+
+            .export-header,
+            .spec-section,
+            .table-of-contents,
+            .conversation-section,
+            .stat-card {
+                box-shadow: none;
+            }
+
+            .spec-card {
+                border: 1px solid #cccccc;
+                page-break-inside: avoid;
+            }
+
+            footer {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <!-- Header: brand identity and core project metadata. -->
+        <header class="export-header">
+            <div class="branding">
+                <h1>{{ brand_name }}</h1>
+                <p class="tagline">Project Specification Portfolio</p>
+            </div>
+            <div class="project-meta">
+                <h2>{{ project_name }}</h2>
+                {% if project_description %}
+                <p>{{ project_description }}</p>
+                {% endif %}
+                <dl>
+                    <div>
+                        <dt>Project ID</dt>
+                        <dd>{{ project_identifier }}</dd>
+                    </div>
+                    <div>
+                        <dt>Created</dt>
+                        <dd>{% if project_created_at %}{{ project_created_at }}{% else %}Not available{% endif %}</dd>
+                    </div>
+                    <div>
+                        <dt>Total Specifications</dt>
+                        <dd>{{ specification_total }}</dd>
+                    </div>
+                    <div>
+                        <dt>Last Activity</dt>
+                        <dd>{% if latest_activity %}{{ latest_activity }}{% else %}Not available{% endif %}</dd>
+                    </div>
+                </dl>
+            </div>
+        </header>
+
+        <!-- Statistics summary: rendered from utils._build_statistics_block. -->
+        <section class="statistics-section">
+            <h2>Project Overview</h2>
+            {{ statistics_block }}
+        </section>
+
+        <!-- Table of contents with quick links to each specification category. -->
+        <nav class="table-of-contents" aria-label="Specification categories">
+            <h2>Table of Contents</h2>
+            {{ table_of_contents }}
+        </nav>
+
+        <!-- Main specification content grouped by type. -->
+        <main class="specification-sections">
+            {{ specification_sections }}
+        </main>
+
+        <!-- Linked conversation references encourage reviewers to trace context. -->
+        {{ conversation_references }}
+
+        <!-- Footer summarises export provenance. -->
+        <footer>
+            Generated on {{ generated_at }} by {{ brand_name }}.
+        </footer>
+    </div>
+</body>
+</html>
