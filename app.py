@@ -27,7 +27,7 @@ import itertools
 import logging
 import traceback
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import gradio as gr
 
@@ -60,6 +60,11 @@ SPECIFICATION_CATEGORIES: Tuple[str, ...] = (
     "Technical Architecture",
     "Validation Criteria",
 )
+
+
+ChatHistory = List[gr.ChatMessage]
+ConversationState = Dict[str, ChatHistory]
+ComponentUpdate = Dict[str, Any]
 
 # Create a simple counter so each pending specification has a predictable,
 # unique identifier. ``itertools.count`` is lightweight and thread-safe for the
@@ -174,17 +179,17 @@ def _persona_prompt(persona: str, message: str) -> str:
 
 
 def _record_conversation(
-    conversation_state: Dict[str, List[Tuple[str, str]]],
+    conversation_state: Dict[str, List[gr.ChatMessage]],
     persona: str,
     user_message: str,
     ai_response: str,
-) -> Dict[str, List[Tuple[str, str]]]:
+) -> Dict[str, List[gr.ChatMessage]]:
     """Append conversation turns and return the mutated state copy."""
 
     updated_history = {**conversation_state}
     history = list(updated_history.get(persona, []))
-    history.append(("user", user_message))
-    history.append(("assistant", ai_response))
+    history.append(gr.ChatMessage(role="user", content=user_message))
+    history.append(gr.ChatMessage(role="assistant", content=ai_response))
     updated_history[persona] = history
     return updated_history
 
@@ -217,12 +222,12 @@ def _group_approved_specifications(records: Iterable[SpecificationRecord]) -> Di
 # Gradio callback functions (project management)
 # ---------------------------------------------------------------------------
 
-def bootstrap_application() -> Tuple[List[str], gr.Dropdown.update, str, Dict[str, List[Tuple[str, str]]], Dict[str, List[Dict[str, str]]], str]:
+def bootstrap_application() -> Tuple[List[str], ComponentUpdate, str, ConversationState, Dict[str, List[Dict[str, str]]], str]:
     """Return initial state for the interface when the app loads."""
 
     projects = [DEMO_PROJECT_NAME]
     current_project = DEMO_PROJECT_NAME
-    conversation_state = {"requirements": [], "technical": []}
+    conversation_state: ConversationState = {"requirements": [], "technical": []}
     pending_state = {"queue": []}
     if CONFIG.demo_mode:
         status = (
@@ -234,7 +239,7 @@ def bootstrap_application() -> Tuple[List[str], gr.Dropdown.update, str, Dict[st
             "Ready to collaborate. Create a project or load demo data while"
             " authenticated providers generate live specifications."
         )
-    dropdown_update = gr.Dropdown.update(choices=projects, value=current_project)
+    dropdown_update = gr.update(choices=projects, value=current_project)
     return projects, dropdown_update, current_project, conversation_state, pending_state, status
 
 
@@ -242,7 +247,7 @@ def create_project(
     project_name: str,
     projects: List[str],
     current_project: Optional[str],
-) -> Tuple[List[str], gr.Dropdown.update, str, gr.Textbox.update]:
+) -> Tuple[List[str], ComponentUpdate, str, ComponentUpdate]:
     """Create a new project and update the selection dropdown."""
 
     if not project_name or not project_name.strip():
@@ -253,9 +258,9 @@ def create_project(
         raise ValueError(f"Project '{normalized_name}' already exists.")
 
     updated_projects = projects + [normalized_name]
-    dropdown_update = gr.Dropdown.update(choices=updated_projects, value=normalized_name)
+    dropdown_update = gr.update(choices=updated_projects, value=normalized_name)
     status = f"Created project '{normalized_name}' and set it as active."
-    clear_input = gr.Textbox.update(value="")
+    clear_input = gr.update(value="")
     return updated_projects, dropdown_update, status, clear_input
 
 
@@ -270,26 +275,32 @@ def select_project(project_name: str) -> Tuple[str, str]:
 
 def load_demo_data(
     projects: List[str],
-    conversation_state: Dict[str, List[Tuple[str, str]]],
+    conversation_state: ConversationState,
     pending_state: Dict[str, List[Dict[str, str]]],
-) -> Tuple[List[str], Dict[str, List[Tuple[str, str]]], Dict[str, List[Dict[str, str]]], gr.Dropdown.update, str]:
+) -> Tuple[List[str], ConversationState, Dict[str, List[Dict[str, str]]], ComponentUpdate, str]:
     """Populate application state with mock data for testing."""
 
     demo_projects = projects if DEMO_PROJECT_NAME in projects else projects + [DEMO_PROJECT_NAME]
 
     conversation_state = {
         "requirements": [
-            ("user", "Outline the business goals for the ecommerce relaunch."),
-            (
-                "assistant",
-                "Generated demo summary covering revenue targets, customer journeys, and KPIs.",
+            gr.ChatMessage(
+                role="user",
+                content="Outline the business goals for the ecommerce relaunch.",
+            ),
+            gr.ChatMessage(
+                role="assistant",
+                content="Generated demo summary covering revenue targets, customer journeys, and KPIs.",
             ),
         ],
         "technical": [
-            ("user", "Propose the core services and integrations we need."),
-            (
-                "assistant",
-                "Demo architecture: API gateway, checkout service, event bus, analytics pipeline.",
+            gr.ChatMessage(
+                role="user",
+                content="Propose the core services and integrations we need.",
+            ),
+            gr.ChatMessage(
+                role="assistant",
+                content="Demo architecture: API gateway, checkout service, event bus, analytics pipeline.",
             ),
         ],
     }
@@ -310,7 +321,7 @@ def load_demo_data(
     ]
 
     pending_state = {"queue": queue}
-    dropdown_update = gr.Dropdown.update(choices=demo_projects, value=DEMO_PROJECT_NAME)
+    dropdown_update = gr.update(choices=demo_projects, value=DEMO_PROJECT_NAME)
     status = "Demo data loaded. Conversations and pending drafts now contain example content."
     return demo_projects, conversation_state, pending_state, dropdown_update, status
 
@@ -324,9 +335,9 @@ def _handle_conversation(
     persona: str,
     message: str,
     project: Optional[str],
-    conversation_state: Dict[str, List[Tuple[str, str]]],
+    conversation_state: ConversationState,
     pending_state: Dict[str, List[Dict[str, str]]],
-) -> Tuple[List[Tuple[str, str]], Dict[str, List[Tuple[str, str]]], Dict[str, List[Dict[str, str]]], str]:
+) -> Tuple[ChatHistory, ConversationState, Dict[str, List[Dict[str, str]]], str]:
     """Core handler shared by both AI persona chat tabs."""
 
     _ensure_project_selected(project)
@@ -376,9 +387,9 @@ def _handle_conversation(
 def handle_requirements_chat(
     message: str,
     project: Optional[str],
-    conversation_state: Dict[str, List[Tuple[str, str]]],
+    conversation_state: ConversationState,
     pending_state: Dict[str, List[Dict[str, str]]],
-) -> Tuple[List[Tuple[str, str]], Dict[str, List[Tuple[str, str]]], Dict[str, List[Dict[str, str]]], str]:
+) -> Tuple[ChatHistory, ConversationState, Dict[str, List[Dict[str, str]]], str]:
     """Wrapper for the Requirements persona interaction."""
 
     return _handle_conversation(
@@ -393,9 +404,9 @@ def handle_requirements_chat(
 def handle_technical_chat(
     message: str,
     project: Optional[str],
-    conversation_state: Dict[str, List[Tuple[str, str]]],
+    conversation_state: ConversationState,
     pending_state: Dict[str, List[Dict[str, str]]],
-) -> Tuple[List[Tuple[str, str]], Dict[str, List[Tuple[str, str]]], Dict[str, List[Dict[str, str]]], str]:
+) -> Tuple[ChatHistory, ConversationState, Dict[str, List[Dict[str, str]]], str]:
     """Wrapper for the Technical persona interaction."""
 
     return _handle_conversation(
@@ -411,16 +422,16 @@ def handle_technical_chat(
 # Gradio callback functions (validation and approvals)
 # ---------------------------------------------------------------------------
 
-def refresh_pending_specs(pending_state: Dict[str, List[Dict[str, str]]]) -> Tuple[gr.Dropdown.update, str]:
+def refresh_pending_specs(pending_state: Dict[str, List[Dict[str, str]]]) -> Tuple[ComponentUpdate, str]:
     """Update the pending specification dropdown and display guidance."""
 
     queue = pending_state.get("queue", [])
     if not queue:
-        return gr.Dropdown.update(choices=[], value=None), "No drafts awaiting validation."
+        return gr.update(choices=[], value=None), "No drafts awaiting validation."
 
     labels = _format_validation_queue(queue)
     first_id = queue[0]["id"]
-    return gr.Dropdown.update(choices=labels, value=first_id), "Select a draft to review."
+    return gr.update(choices=labels, value=first_id), "Select a draft to review."
 
 
 def load_pending_spec(
@@ -533,12 +544,12 @@ def export_specification(
     return rendered, notice
 
 
-def list_exportable_specs() -> gr.Dropdown.update:
+def list_exportable_specs() -> ComponentUpdate:
     """Populate the export dropdown with approved specifications."""
 
     records = DB_MANAGER.fetch_recent_specifications(limit=200)
     options = [(record.title, str(record.id)) for record in records]
-    return gr.Dropdown.update(choices=options, value=(options[0][1] if options else None))
+    return gr.update(choices=options, value=(options[0][1] if options else None))
 
 
 def summarize_settings() -> str:
@@ -627,7 +638,7 @@ def build_interface() -> gr.Blocks:
                 and product scope. Each response is added to the validation queue.
                 """
             )
-            requirements_chat = gr.Chatbot(height=350)
+            requirements_chat = gr.Chatbot(type="messages", height=350)
             with gr.Row(elem_classes="two-column"):
                 requirements_input = gr.Textbox(label="Message", placeholder="Describe goals, constraints, and personas...", lines=3)
                 requirements_submit = gr.Button("Send", variant="primary")
@@ -643,7 +654,7 @@ def build_interface() -> gr.Blocks:
                 considerations. Drafts also flow into the validation queue for review.
                 """
             )
-            technical_chat = gr.Chatbot(height=350)
+            technical_chat = gr.Chatbot(type="messages", height=350)
             with gr.Row(elem_classes="two-column"):
                 technical_input = gr.Textbox(label="Message", placeholder="Ask for architecture proposals, sequencing, or risks...", lines=3)
                 technical_submit = gr.Button("Send", variant="primary")
