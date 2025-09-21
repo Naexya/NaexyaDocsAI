@@ -220,11 +220,12 @@ class ProviderCredential:
 class AppConfig:
     """Container holding runtime configuration for the Gradio interface."""
 
-    database_path: Path
+    database_path: Optional[Path]
     providers: Dict[str, ProviderCredential] = field(default_factory=dict)
     default_provider: str = "openai"
     demo_mode: bool = False
     space_id: Optional[str] = None
+    persistence_enabled: bool = True
 
     @classmethod
     def from_environment(cls) -> "AppConfig":
@@ -235,12 +236,33 @@ class AppConfig:
 
         env = os.environ
         is_spaces = any(env.get(var) for var in ("SPACE_ID", "HF_SPACE_ID", "HF_HOME"))
-        data_dir = Path(
-            env.get("NAEXYA_DATA_DIR")
-            or ("/data" if is_spaces else Path(__file__).resolve().parent)
-        )
-        data_dir.mkdir(parents=True, exist_ok=True)
-        database_path = (data_dir / env.get("NAEXYA_DB_FILENAME", "naexya_docs_ai.db")).resolve()
+
+        def _is_truthy(value: Optional[str]) -> bool:
+            return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+        disable_storage = _is_truthy(env.get("NAEXYA_DISABLE_STORAGE"))
+        enable_storage = _is_truthy(env.get("NAEXYA_ENABLE_STORAGE"))
+
+        if disable_storage:
+            persistence_enabled = False
+        elif enable_storage:
+            persistence_enabled = True
+        else:
+            # Hugging Face Spaces mount a read-only filesystem for the repository.
+            # Default to in-memory storage there unless explicitly overridden.
+            persistence_enabled = not is_spaces
+
+        if persistence_enabled:
+            data_dir = Path(
+                env.get("NAEXYA_DATA_DIR")
+                or ("/data" if is_spaces else Path(__file__).resolve().parent)
+            )
+            data_dir.mkdir(parents=True, exist_ok=True)
+            database_path: Optional[Path] = (
+                data_dir / env.get("NAEXYA_DB_FILENAME", "naexya_docs_ai.db")
+            ).resolve()
+        else:
+            database_path = None
 
         provider_env_map = {
             "openai": "OPENAI_API_KEY",
@@ -275,6 +297,7 @@ class AppConfig:
             default_provider=default_provider,
             demo_mode=demo_mode,
             space_id=env.get("SPACE_ID") or env.get("HF_SPACE_ID"),
+            persistence_enabled=persistence_enabled,
         )
 
     def get_api_key(self, provider: str) -> Optional[str]:
