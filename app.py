@@ -65,9 +65,65 @@ SPECIFICATION_CATEGORIES: Tuple[str, ...] = (
 )
 
 
-ChatHistory = List[gr.ChatMessage]
+# ---------------------------------------------------------------------------
+# Gradio compatibility helpers
+# ---------------------------------------------------------------------------
+
+if hasattr(gr, "ChatMessage"):
+    ChatMessage = gr.ChatMessage
+else:
+    @dataclass(frozen=True)
+    class ChatMessage:
+        """Fallback message structure for Gradio versions without ChatMessage."""
+
+        role: str
+        content: str
+
+        def dict(self) -> Dict[str, str]:
+            """Return a dictionary representation compatible with Gradio Chatbot."""
+
+            return {"role": self.role, "content": self.content}
+
+        def model_dump(self) -> Dict[str, str]:
+            """Mirror pydantic-style serialization used internally by Gradio."""
+
+            return self.dict()
+
+        def __iter__(self):
+            """Allow tuple-like unpacking in legacy Gradio behaviors."""
+
+            yield self.role
+            yield self.content
+
+        def __getitem__(self, key: str) -> str:
+            """Provide dictionary-style access for compatibility checks."""
+
+            if key == "role":
+                return self.role
+            if key == "content":
+                return self.content
+            raise KeyError(key)
+
+
+ChatHistory = List[ChatMessage]
 ConversationState = Dict[str, ChatHistory]
 ComponentUpdate = Dict[str, Any]
+ChatbotMessages = List[Any]
+
+# ``gr.Chatbot`` expects different payload structures depending on the installed
+# Gradio version. The helper below normalizes our internal chat history objects
+# to the appropriate wire format, keeping the rest of the codebase agnostic to
+# those differences.
+def _chatbot_messages(history: ChatHistory) -> ChatbotMessages:
+    """Return data formatted for ``gr.Chatbot`` regardless of Gradio version."""
+
+    if hasattr(gr, "ChatMessage"):
+        return history
+    return [
+        message.dict() if hasattr(message, "dict") else {"role": message.role, "content": message.content}
+        for message in history
+    ]
+
 
 # Create a simple counter so each pending specification has a predictable,
 # unique identifier. ``itertools.count`` is lightweight and thread-safe for the
@@ -182,17 +238,17 @@ def _persona_prompt(persona: str, message: str) -> str:
 
 
 def _record_conversation(
-    conversation_state: Dict[str, List[gr.ChatMessage]],
+    conversation_state: Dict[str, List[ChatMessage]],
     persona: str,
     user_message: str,
     ai_response: str,
-) -> Dict[str, List[gr.ChatMessage]]:
+) -> Dict[str, List[ChatMessage]]:
     """Append conversation turns and return the mutated state copy."""
 
     updated_history = {**conversation_state}
     history = list(updated_history.get(persona, []))
-    history.append(gr.ChatMessage(role="user", content=user_message))
-    history.append(gr.ChatMessage(role="assistant", content=ai_response))
+    history.append(ChatMessage(role="user", content=user_message))
+    history.append(ChatMessage(role="assistant", content=ai_response))
     updated_history[persona] = history
     return updated_history
 
@@ -287,21 +343,21 @@ def load_demo_data(
 
     conversation_state = {
         "requirements": [
-            gr.ChatMessage(
+            ChatMessage(
                 role="user",
                 content="Outline the business goals for the ecommerce relaunch.",
             ),
-            gr.ChatMessage(
+            ChatMessage(
                 role="assistant",
                 content="Generated demo summary covering revenue targets, customer journeys, and KPIs.",
             ),
         ],
         "technical": [
-            gr.ChatMessage(
+            ChatMessage(
                 role="user",
                 content="Propose the core services and integrations we need.",
             ),
-            gr.ChatMessage(
+            ChatMessage(
                 role="assistant",
                 content="Demo architecture: API gateway, checkout service, event bus, analytics pipeline.",
             ),
@@ -340,7 +396,7 @@ def _handle_conversation(
     project: Optional[str],
     conversation_state: ConversationState,
     pending_state: Dict[str, List[Dict[str, str]]],
-) -> Tuple[ChatHistory, ConversationState, Dict[str, List[Dict[str, str]]], str]:
+) -> Tuple[ChatbotMessages, ConversationState, Dict[str, List[Dict[str, str]]], str]:
     """Core handler shared by both AI persona chat tabs."""
 
     _ensure_project_selected(project)
@@ -384,7 +440,7 @@ def _handle_conversation(
     updated_pending = {"queue": queue}
 
     status = "Draft added to the validation queue. Review it on the Validation tab."
-    return updated_conversation[persona], updated_conversation, updated_pending, status
+    return _chatbot_messages(updated_conversation[persona]), updated_conversation, updated_pending, status
 
 
 def handle_requirements_chat(
@@ -392,7 +448,7 @@ def handle_requirements_chat(
     project: Optional[str],
     conversation_state: ConversationState,
     pending_state: Dict[str, List[Dict[str, str]]],
-) -> Tuple[ChatHistory, ConversationState, Dict[str, List[Dict[str, str]]], str]:
+) -> Tuple[ChatbotMessages, ConversationState, Dict[str, List[Dict[str, str]]], str]:
     """Wrapper for the Requirements persona interaction."""
 
     return _handle_conversation(
@@ -409,7 +465,7 @@ def handle_technical_chat(
     project: Optional[str],
     conversation_state: ConversationState,
     pending_state: Dict[str, List[Dict[str, str]]],
-) -> Tuple[ChatHistory, ConversationState, Dict[str, List[Dict[str, str]]], str]:
+) -> Tuple[ChatbotMessages, ConversationState, Dict[str, List[Dict[str, str]]], str]:
     """Wrapper for the Technical persona interaction."""
 
     return _handle_conversation(
