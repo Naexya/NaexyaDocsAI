@@ -48,7 +48,10 @@ LOGGER = logging.getLogger(__name__)
 # Instantiate configuration, database manager, and AI client when the module is
 # imported. This ensures shared state is reused across Gradio requests.
 CONFIG: AppConfig = AppConfig.from_environment()
-DB_MANAGER = DatabaseManager(database_path=CONFIG.database_path)
+DB_MANAGER = DatabaseManager(
+    database_path=CONFIG.database_path,
+    persistence_enabled=CONFIG.persistence_enabled,
+)
 AI = AIClient(config=CONFIG)
 
 # Category definitions used throughout validation and reporting flows. The order

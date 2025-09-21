@@ -25,8 +25,11 @@ from __future__ import annotations
 import logging
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
+
+import itertools
 
 # ---------------------------------------------------------------------------
 # Module-level configuration
@@ -514,12 +517,28 @@ class SpecificationRecord:
 class DatabaseManager:
     """Simplified database helper tailored for the Gradio UI flows."""
 
-    def __init__(self, database_path: Path):
-        self.database_path = Path(database_path)
-        init_database(self.database_path)
+    def __init__(self, database_path: Optional[Path], persistence_enabled: bool = True):
+        self.persistence_enabled = bool(persistence_enabled and database_path)
+        self.database_path = Path(database_path) if database_path else None
+        self._memory_specs: List[SpecificationRecord] = []
+        self._memory_counter = itertools.count(1)
+        if self.persistence_enabled and self.database_path is not None:
+            init_database(self.database_path)
 
     def save_specification(self, title: str, content: str) -> int:
         """Persist an approved specification for later browsing and export."""
+
+        if not self.persistence_enabled:
+            spec_id = next(self._memory_counter)
+            record = SpecificationRecord(
+                id=spec_id,
+                title=title,
+                content=content,
+                created_at=datetime.utcnow().isoformat(timespec="seconds"),
+            )
+            self._memory_specs.append(record)
+            LOGGER.debug("Stored specification in memory with id %s", spec_id)
+            return spec_id
 
         LOGGER.info("Persisting approved specification: %s", title)
         try:
@@ -538,6 +557,9 @@ class DatabaseManager:
 
     def fetch_recent_specifications(self, limit: int = 50) -> List[SpecificationRecord]:
         """Return the most recently stored approved specifications."""
+
+        if not self.persistence_enabled:
+            return list(reversed(self._memory_specs[-limit:]))
 
         LOGGER.debug("Fetching up to %s approved specifications", limit)
         try:
@@ -565,9 +587,16 @@ class DatabaseManager:
             raise
 
 
-# Ensure the schema exists whenever this module is imported.  This keeps the
-# rest of the application simple because it can assume the tables are present.
-init_database()
+# Ensure the schema exists whenever this module is imported when possible.  If
+# the environment is read-only (such as Hugging Face Spaces without persistence)
+# we gracefully skip initialization and fall back to in-memory storage.
+try:
+    init_database()
+except sqlite3.DatabaseError:
+    LOGGER.info(
+        "Skipping default database initialisation because the filesystem is unavailable.",
+        exc_info=True,
+    )
 
 
 __all__ = [
